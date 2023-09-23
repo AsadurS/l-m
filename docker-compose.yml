@@ -1,0 +1,112 @@
+version: '3.8'
+services:
+
+    # PHP Service
+    laravel-admin:
+        build:
+            context: .
+            dockerfile: ./docker/backend/DockerFile
+        container_name: "${PROJECT_NAME}_laravel_admin"
+        tty: true
+        environment:
+            SERVICE_NAME: laravle-admin
+        working_dir: /var/www/laravle-admin
+        volumes:
+            - ./backend/:/var/www/laravle-admin
+            - ./docker/backend/supervisor/supervisord.conf:/etc/supervisord.conf
+            - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+        networks:
+            - private
+    laravel-main:
+        build:
+            context: .
+            dockerfile: ./docker/backend/DockerFile
+        container_name: "${PROJECT_NAME}_laravel_main"
+        tty: true
+        environment:
+            SERVICE_NAME: laravel-main
+        working_dir: /var/www/laravel-main
+        volumes:
+            - ./backend/:/var/www/laravel-main
+            - ./docker/backend/supervisor/supervisord.conf:/etc/supervisord.conf
+            - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+        networks:
+            - private
+    # Frontend Service
+    frontend:
+        build:
+            context: .
+            dockerfile: ./docker/frontend/DockerFile
+        container_name: "${PROJECT_NAME}_frontend"
+        working_dir: /usr/src/app/frontend
+        volumes: 
+            - ./frontend/:/usr/src/app/frontend 
+        ports: 
+            - '4200:4200' 
+        command: > 
+            bash -c "npm install && ng serve --host 0.0.0.0 --port 4200"
+        networks:
+            - private
+
+    # Nginx Service
+    webserver_admin:
+        image: nginx:alpine
+        container_name: "${PROJECT_NAME}_webserver_admin"
+        tty: true
+        ports:
+            - "8000:80"
+        volumes:
+            - ./laravel-admin/:/var/www/backend-admin
+            - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+        networks:
+            - private
+    webserver_main:
+        image: nginx:alpine
+        container_name: "${PROJECT_NAME}_webserver_main"
+        tty: true
+        ports:
+            - "8080:80"
+        volumes:
+            - ./laravel-main/:/var/www/backend-main
+            - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+        networks:
+            - private
+    # MySQL Service
+    mysql:
+        image: mysql:latest
+        container_name: "${PROJECT_NAME}_mysql"
+        tty: true
+        environment:
+            MYSQL_USER: ${USER_MYSQL}
+            MYSQL_PASSWORD: ${PASS_MYSQL}
+            MYSQL_DATABASE: ${MYSQL_DB}
+            MYSQL_ROOT_PASSWORD: ${PASS_ROOT_MYSQL}
+            MYSQL_ROOT_HOST: '%'
+            SERVICE_NAME: mysql
+        volumes:
+            - ./docker/mysql/dbdata/:/var/lib/mysql-files/
+            - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
+        networks:
+            - private
+
+    # PHPMYADMIN Service
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        container_name: "${PROJECT_NAME}_phpmyadmin"
+        ports:
+            - "7000:80"
+        links:
+            - mysql:mysql
+        environment:
+            MYSQL_USER: ${USER_MYSQL}
+            MYSQL_PASSWORD: ${PASS_MYSQL}
+            MYSQL_ROOT_PASSWORD: ${PASS_ROOT_MYSQL}
+            MYSQL_ROOT_HOST: '%'
+            PMA_HOST: mysql
+        networks:
+            - private
+
+# Docker Networks
+networks:
+    private:
+        driver: bridge
